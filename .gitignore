@@ -1,0 +1,18 @@
+# Spring Boot
+backend/target/
+backend/.mvn/
+backend/*.iml
+backend/.idea/
+
+# Flutter
+frontend/build/
+frontend/.dart_tool/
+frontend/.packages
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+# Général
+.DS_Store
+*.log
+.vscode/
+.env
