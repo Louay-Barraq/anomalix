@@ -45,6 +45,23 @@ class DashboardScreen extends ConsumerWidget {
               onPressed: () => ref.read(authProvider.notifier).logout(),
             ),
           ),
+          if (ref.watch(authProvider)?.hasMultipleRoles == true)
+            IconButton(
+              icon: const Icon(Icons.swap_horiz, color: Colors.white),
+              tooltip: 'Passer en mode Adhérent',
+              onPressed: () async {
+                final success = await ref
+                    .read(authProvider.notifier)
+                    .switchRole('ADHERENT');
+                if (!success && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Erreur lors du changement de rôle'),
+                    ),
+                  );
+                }
+              },
+            ),
         ],
       ),
       body: LayoutBuilder(

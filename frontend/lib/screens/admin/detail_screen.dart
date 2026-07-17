@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend/providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../models/anomaly.dart';
 import '../../models/dossier.dart';
@@ -13,7 +14,7 @@ class DetailScreen extends ConsumerStatefulWidget {
 }
 
 class _DetailScreenState extends ConsumerState<DetailScreen> {
-  final ApiService _api = ApiService();
+
   Dossier? _dossier;
   List<Anomaly> _anomalies = [];
   bool _loading = true;
@@ -25,8 +26,11 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   }
 
   Future<void> _loadData() async {
-    final dossier = await _api.getDossierByNumero(widget.numDossier);
-    final anomalies = await _api.getAnomaliesByDossier(widget.numDossier);
+    final user = ref.read(authProvider);
+    final api = ApiService(token: user?.token); // ← fresh instance
+
+    final dossier = await api.getDossierByNumero(widget.numDossier);
+    final anomalies = await api.getAnomaliesByDossier(widget.numDossier);
     setState(() {
       _dossier = dossier;
       _anomalies = anomalies;

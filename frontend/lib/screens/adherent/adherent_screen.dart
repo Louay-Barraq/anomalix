@@ -14,8 +14,6 @@ class AdherentScreen extends ConsumerStatefulWidget {
 }
 
 class _AdherentScreenState extends ConsumerState<AdherentScreen> {
-  final ApiService _api = ApiService();
-
   // Variables du formulaire
   final _numDossierController = TextEditingController();
   final _contratController = TextEditingController();
@@ -43,17 +41,20 @@ class _AdherentScreenState extends ConsumerState<AdherentScreen> {
     _loadDossiers();
   }
 
+  // Remove _api field entirely from the class
+
   Future<void> _loadDossiers() async {
     try {
       final user = ref.read(authProvider);
       if (user?.numDossier == null) return;
 
-      // Charge la famille
-      final dossiers = await _api.getFamilleByNumero(user!.numDossier!);
+      final api = ApiService(
+        token: user!.token,
+      ); // ← create fresh instance here
 
-      // Charge les bulletins de toute la famille
+      final dossiers = await api.getFamilleByNumero(user.numDossier!);
       final numDossiers = dossiers.map((d) => d.numero).toList();
-      final bulletins = await _api.getBulletinsByFamille(numDossiers);
+      final bulletins = await api.getBulletinsByFamille(numDossiers);
 
       setState(() {
         _dossiers = dossiers;
@@ -61,10 +62,8 @@ class _AdherentScreenState extends ConsumerState<AdherentScreen> {
         _loadingDossiers = false;
       });
     } catch (e) {
-      setState(() {
-        _loadingDossiers = false;
-        _error = 'Erreur chargement : $e'; // ← affiche l'erreur
-      });
+      print('FULL ERROR : $e');
+      setState(() => _loadingDossiers = false);
     }
   }
 
@@ -77,57 +76,63 @@ class _AdherentScreenState extends ConsumerState<AdherentScreen> {
   String? _selectedNumDossier;
 
   Future<void> _submit() async {
-    final user = ref.read(authProvider);
-    if (user?.numDossier == null) return;
+  final user = ref.read(authProvider);
+  final api = ApiService(token: user?.token);
+
+  setState(() {
+    _loading = true;
+    _error = null;
+    _success = false;
+    _fieldErrors = {};
+  });
+
+  try {
+    final data = {
+      'numDossier': _nouveauMembre
+          ? _numDossierController.text.trim()
+          : _selectedNumDossier,
+      'contrat': int.tryParse(_contratController.text.trim()),
+      'adhesion': int.tryParse(_adhesionController.text.trim()),
+      'date': _dateSoin?.toIso8601String().split('T')[0],
+      'nouveauMembre': _nouveauMembre,
+      if (_nouveauMembre) ...{
+        'nom': _nomController.text.trim(),
+        'prenom': _prenomController.text.trim(),
+        'adresse': _adresseController.text.trim().isEmpty
+            ? null
+            : _adresseController.text.trim(),
+        'emploi': _emploiController.text.trim().isEmpty
+            ? null
+            : _emploiController.text.trim(),
+        'malade': _malade,
+        'dateNaissance':
+            _dateNaissance?.toIso8601String().split('T')[0],
+        'numAdherent': user?.numDossier,
+      },
+    };
+
+    await api.soumettreBulletin(data);
 
     setState(() {
-      _loading = true;
-      _error = null;
-      _success = false;
-      _fieldErrors = {};
+      _success = true;
+      _loading = false;
     });
-
-    try {
-      final data = {
-        'numDossier': _nouveauMembre
-            ? _numDossierController.text.trim()
-            : _selectedNumDossier,
-        'contrat': int.tryParse(_contratController.text.trim()),
-        'adhesion': int.tryParse(_adhesionController.text.trim()),
-        'date': _dateSoin?.toIso8601String().split('T')[0],
-        'nouveauMembre': _nouveauMembre,
-        if (_nouveauMembre) ...{
-          'nom': _nomController.text.trim(),
-          'prenom': _prenomController.text.trim(),
-          'adresse': _adresseController.text.trim(),
-          'emploi': _emploiController.text.trim(),
-          'malade': _malade,
-          'dateNaissance': _dateNaissance?.toIso8601String().split('T')[0],
-          'numAdherent': user?.numDossier,
-        },
-      };
-
-      await _api.soumettreBulletin(data);
-      setState(() {
-        _success = true;
-        _loading = false;
-      });
-      _clearForm();
-      _loadDossiers();
-    } on DioException catch (e) {
-      final error = ApiService.extractError(e);
-      setState(() {
-        _loading = false;
-        _error = error.message;
-        _fieldErrors = error.fieldErrors ?? {};
-      });
-    } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = 'Erreur inattendue : $e';
-      });
-    }
+    _clearForm();
+    _loadDossiers();
+  } on DioException catch (e) {
+    final error = ApiService.extractError(e);
+    setState(() {
+      _loading = false;
+      _error = error.message;
+      _fieldErrors = error.fieldErrors ?? {};
+    });
+  } catch (e) {
+    setState(() {
+      _loading = false;
+      _error = 'Erreur inattendue : $e';
+    });
   }
+}
 
   void _clearForm() {
     _numDossierController.clear();
@@ -158,11 +163,8 @@ class _AdherentScreenState extends ConsumerState<AdherentScreen> {
         actions: [
           IconButton(
             onPressed: _loadDossiers,
-            icon: Icon(
-              Icons.refresh,
-              color: Colors.white,
-              ),
-            ),
+            icon: Icon(Icons.refresh, color: Colors.white),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton.icon(
@@ -174,6 +176,26 @@ class _AdherentScreenState extends ConsumerState<AdherentScreen> {
               onPressed: () => ref.read(authProvider.notifier).logout(),
             ),
           ),
+          if (ref.watch(authProvider)?.hasMultipleRoles == true)
+            IconButton(
+              icon: const Icon(
+                Icons.admin_panel_settings_outlined,
+                color: Colors.white,
+              ),
+              tooltip: 'Passer en mode Administrateur',
+              onPressed: () async {
+                final success = await ref
+                    .read(authProvider.notifier)
+                    .switchRole('ADMIN');
+                if (!success && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Erreur lors du changement de rôle'),
+                    ),
+                  );
+                }
+              },
+            ),
         ],
       ),
       body: LayoutBuilder(
