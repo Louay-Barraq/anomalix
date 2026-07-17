@@ -22,7 +22,8 @@ class AnomalixApp extends ConsumerWidget {
       title: 'Anomalix',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1E40AF)),
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF1E40AF)),
         useMaterial3: true,
       ),
       onGenerateRoute: AppRouter.generateRoute,

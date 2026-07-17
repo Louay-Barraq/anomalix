@@ -3,13 +3,16 @@ import '../models/anomaly.dart';
 import '../models/dossier.dart';
 import '../models/bull_bord.dart';
 
-// Exception personnalisée pour les erreurs API
 class ApiException implements Exception {
   final String message;
   final Map<String, String>? fieldErrors;
   final int? statusCode;
 
-  ApiException({required this.message, this.fieldErrors, this.statusCode});
+  ApiException({
+    required this.message,
+    this.fieldErrors,
+    this.statusCode,
+  });
 
   @override
   String toString() => message;
@@ -20,95 +23,98 @@ class ApiService {
 
   late final Dio _dio;
 
-  ApiService() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: _baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-        headers: {'Content-Type': 'application/json'},
-      ),
-    );
+  ApiService({String? token}) {
+    _dio = Dio(BaseOptions(
+      baseUrl: _baseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      headers: {
+        'Content-Type': 'application/json',
+        // Ajoute le token JWT dans chaque requête si disponible
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    ));
 
-    // Intercepteur qui transforme les erreurs Spring en ApiException
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onError: (DioException e, handler) {
-          if (e.response != null) {
-            final data = e.response!.data;
-            final statusCode = e.response!.statusCode;
+    _dio.interceptors.add(InterceptorsWrapper(
+      onError: (DioException e, handler) {
+        if (e.response != null) {
+          final data = e.response!.data;
+          final statusCode = e.response!.statusCode;
 
-            // Erreur de validation (HTTP 400)
-            if (statusCode == 400 && data is Map) {
-              final details = data['details'];
-              Map<String, String>? fieldErrors;
-
-              if (details is Map) {
-                fieldErrors = details.map(
-                  (k, v) => MapEntry(k.toString(), v.toString()),
-                );
-              }
-
-              return handler.reject(
-                DioException(
-                  requestOptions: e.requestOptions,
-                  error: ApiException(
-                    message: data['error'] ?? 'Validation échouée',
-                    fieldErrors: fieldErrors,
-                    statusCode: statusCode,
-                  ),
-                ),
+          if (statusCode == 400 && data is Map) {
+            final details = data['details'];
+            Map<String, String>? fieldErrors;
+            if (details is Map) {
+              fieldErrors = details.map(
+                (k, v) => MapEntry(k.toString(), v.toString()),
               );
             }
-
-            // Erreur 404
-            if (statusCode == 404 && data is Map) {
-              return handler.reject(
-                DioException(
-                  requestOptions: e.requestOptions,
-                  error: ApiException(
-                    message: data['error'] ?? 'Ressource introuvable',
-                    statusCode: statusCode,
-                  ),
-                ),
-              );
-            }
-
-            // Erreur 500
-            if (statusCode == 500 && data is Map) {
-              return handler.reject(
-                DioException(
-                  requestOptions: e.requestOptions,
-                  error: ApiException(
-                    message: data['error'] ?? 'Erreur serveur',
-                    statusCode: statusCode,
-                  ),
-                ),
-              );
-            }
-          }
-
-          // Erreur réseau (pas de connexion)
-          if (e.type == DioExceptionType.connectionError) {
-            return handler.reject(
-              DioException(
-                requestOptions: e.requestOptions,
-                error: ApiException(
-                  message:
-                      'Impossible de joindre le serveur. '
-                      'Vérifiez que Spring Boot est lancé.',
-                ),
+            return handler.reject(DioException(
+              requestOptions: e.requestOptions,
+              error: ApiException(
+                message: data['error'] ?? 'Validation échouée',
+                fieldErrors: fieldErrors,
+                statusCode: statusCode,
               ),
-            );
+            ));
           }
 
-          handler.next(e);
-        },
-      ),
-    );
+          if (statusCode == 401) {
+            return handler.reject(DioException(
+              requestOptions: e.requestOptions,
+              error: ApiException(
+                message: 'Session expirée. Veuillez vous reconnecter.',
+                statusCode: 401,
+              ),
+            ));
+          }
+
+          if (statusCode == 403) {
+            return handler.reject(DioException(
+              requestOptions: e.requestOptions,
+              error: ApiException(
+                message: 'Accès refusé.',
+                statusCode: 403,
+              ),
+            ));
+          }
+
+          if (statusCode == 404 && data is Map) {
+            return handler.reject(DioException(
+              requestOptions: e.requestOptions,
+              error: ApiException(
+                message: data['error'] ?? 'Ressource introuvable',
+                statusCode: statusCode,
+              ),
+            ));
+          }
+
+          if (statusCode == 500 && data is Map) {
+            return handler.reject(DioException(
+              requestOptions: e.requestOptions,
+              error: ApiException(
+                message: data['error'] ?? 'Erreur serveur',
+                statusCode: statusCode,
+              ),
+            ));
+          }
+        }
+
+        if (e.type == DioExceptionType.connectionError) {
+          return handler.reject(DioException(
+            requestOptions: e.requestOptions,
+            error: ApiException(
+              message: 'Impossible de joindre le serveur. '
+                  'Vérifiez que Spring Boot est lancé.',
+            ),
+          ));
+        }
+
+        handler.next(e);
+      },
+    ));
   }
 
-  // Helper pour extraire l'ApiException d'une DioException
   static ApiException extractError(DioException e) {
     if (e.error is ApiException) return e.error as ApiException;
     return ApiException(message: e.message ?? 'Erreur inconnue');
@@ -116,11 +122,19 @@ class ApiService {
 
   // ─── Auth ─────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> login(String username, String password) async {
-    final response = await _dio.post(
-      '/auth/login',
-      data: {'username': username, 'password': password},
-    );
+  Future<Map<String, dynamic>> login(
+      String username, String password) async {
+    final response = await _dio.post('/auth/login', data: {
+      'username': username,
+      'password': password,
+    });
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> switchRole(String targetRole) async {
+    final response = await _dio.post('/auth/switch-role', data: {
+      'targetRole': targetRole,
+    });
     return response.data as Map<String, dynamic>;
   }
 
@@ -168,8 +182,9 @@ class ApiService {
         .toList();
   }
 
-  Future<void> soumettreBulletin(Map<String, dynamic> data) async {
-    await _dio.post('/bulletins', data: data);
+  Future<Dossier> createDossier(Map<String, dynamic> data) async {
+    final response = await _dio.post('/dossiers', data: data);
+    return Dossier.fromJson(response.data);
   }
 
   // ─── BullBord ─────────────────────────────────────────────
@@ -195,10 +210,18 @@ class ApiService {
         .toList();
   }
 
-  Future<List<BullBord>> getBulletinsByFamille(List<String> numDossiers) async {
-    final response = await _dio.post('/bullbord/famille', data: numDossiers);
+  Future<List<BullBord>> getBulletinsByFamille(
+      List<String> numDossiers) async {
+    final response = await _dio.post('/bullbord/famille',
+        data: numDossiers);
     return (response.data as List)
         .map((json) => BullBord.fromJson(json))
         .toList();
+  }
+
+  // ─── Bulletins ────────────────────────────────────────────
+
+  Future<void> soumettreBulletin(Map<String, dynamic> data) async {
+    await _dio.post('/bulletins', data: data);
   }
 }
