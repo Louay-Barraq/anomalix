@@ -1,0 +1,14 @@
+meta {
+  name: Get Anomalies by Dossier
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/anomalies/dossier/N00007
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

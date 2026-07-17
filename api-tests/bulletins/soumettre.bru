@@ -1,0 +1,25 @@
+meta {
+  name: Soumettre Bulletin
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/bulletins
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "numDossier": "N00006",
+    "contrat": 1002,
+    "adhesion": 200006,
+    "date": "2025-07-10",
+    "nouveauMembre": false
+  }
+}

@@ -1,0 +1,14 @@
+meta {
+  name: Get All Anomalies
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/anomalies
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

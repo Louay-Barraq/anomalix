@@ -1,0 +1,29 @@
+meta {
+  name: Create Dossier
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/dossiers
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "numero": "N00039",
+    "contrat": 1002,
+    "adhesion": 200039,
+    "nom": "Saidi",
+    "prenom": "Leila",
+    "adresse": "Bizerte",
+    "emploi": "Professeur",
+    "malade": "conjoint",
+    "dateNaissance": "1985-05-12"
+  }
+}

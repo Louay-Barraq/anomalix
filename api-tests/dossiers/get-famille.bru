@@ -1,0 +1,14 @@
+meta {
+  name: Get Famille
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/dossiers/N00006/famille
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

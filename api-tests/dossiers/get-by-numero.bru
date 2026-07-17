@@ -1,0 +1,14 @@
+meta {
+  name: Get Dossier by Numero
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/dossiers/N00006
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
