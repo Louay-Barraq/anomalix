@@ -6,11 +6,13 @@ import com.anomalix.backend.repository.DossierRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/dossiers")
 @RequiredArgsConstructor
@@ -35,9 +37,10 @@ public class DossierController {
 
     @GetMapping("/{numero}/famille")
     public ResponseEntity<List<Dossier>> getFamille(@PathVariable String numero) {
-        return ResponseEntity.ok(
-                dossierRepository.findByNumeroOrNumAdherent(numero, numero)
-        );
+        log.info("getFamille called for numero: {}", numero);
+        List<Dossier> famille = dossierRepository.findByNumeroOrNumAdherent(numero, numero);
+        log.info("Found {} dossiers", famille.size());
+        return ResponseEntity.ok(famille);
     }
 
     @PostMapping
